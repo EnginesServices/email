@@ -15,8 +15,59 @@
         "level": "alpha",
         "patch": 0
       }
-    }
+    },
+    "software": {
+      "display": {
+        "title": "Email server",
+        "label": "email"
+      }
+    },
+    "timestamp": "2017-11-16T12:54:56+11:00"
   },
   "software": {
+    "base": {
+      "name": "email",
+      "publisher_namespace": "EnginesSystem",
+      "type_path": "email",
+      "service_handle_field": "name",
+      "parent_image": "engines/servicebase",
+      "run_as_user": "postfix",
+      "deployment_type": "worker",
+      "memory": {
+        "required": 90,
+        "recommended": 90
+      }
+    },
+    "ports": [
+      {
+        "port": 25,
+        "external": 25,
+        "protocol": "tcp"
+      }
+    ],
+    "service_configurations": [
+      {
+        "publisher_namespace": "EnginesSystem",
+        "type_path": "filesystem/local/filesystem",
+        "variables": {
+          "service_name": "spool",
+          "volume_src": "email",
+          "engine_path": " /var/spool/postfix/",
+          "permissions": "rw",
+          "user": "postifx",
+          "group": "postifx"
+        }
+      }
+    ],
+    "environment_variables": [
+      {
+        "name": "DEFAULT_DOMAIN",
+        "value": "_Engines_System(default_domain)",
+        "mandatory": true,
+        "input": {
+          "type": "string"
+        }
+      }
+    ]
   }
 }
