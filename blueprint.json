@@ -22,7 +22,7 @@
         "label": "email"
       }
     },
-    "timestamp": "2017-11-16T12:54:56+11:00"
+    "timestamp": "2017-11-16T13:34:14+11:00"
   },
   "software": {
     "base": {
@@ -36,13 +36,39 @@
       "memory": {
         "required": 90,
         "recommended": 90
-      }
+      },
+      "persistent": true,
+      "attach_post_build": true
     },
     "ports": [
       {
         "port": 25,
         "external": 25,
         "protocol": "tcp"
+      }
+    ],
+    "scripts": {
+      "start": {
+        "language": "sh",
+        "content": "#!/bin/sh\r\n\r\nPID_FILE=/tmp/sleep.pid\r\nexport PID_FILE\r\n\r\nKILL_SCRIPT=/home/engines/scripts/signal/kill_sleep.sh\r\nexport KILL_SCRIPT\r\n\r\n. /home/engines/functions/trap.sh\r\n\r\nservice_first_run_check\r\n\r\n\r\n#echo '{\"default_domain\":\"'$DEFAULT_DOMAIN'\"}' |/home/engines/scripts/configurators/set_default_domain.sh \r\necho '{}' > /home/engines/scripts/configurators/saved/default_domain\r\n \r\nsudo -n /home/engines/scripts/configurators/rebuild_main.sh\r\n\r\nif test -f /home/engines/scripts/configurators/saved/grey_listing_enabled\r\n  then\r\n  /home/engines/scripts/engine/start_grey.sh\r\nfi\r\n\r\n\r\n/home/engines/scripts/startup/init_dbs.sh\r\nsudo -n /home/engines/scripts/startup/_start_postfix.sh &\r\nstartup_complete\r\n\r\n\r\n\twhile ! test -f /home/engines/run/flags/sig_term -o -f /home/engines/run/flags/sig_quit\r\n\tdo \t\t\r\n\t\t if ! test -f /var/spool/postfix/pid/master.pid\r\n\t\t  then\r\n\t\t   break\r\n\t\t fi\r\n\t    sleep 500 &\r\n\t    echo $! >/tmp/sleep.pid\r\n\t\twait \t\t\r\n\t\texit_code=$?\r\n\t\trm /tmp/sleep.pid\r\n\tdone\r\n\r\nshutdown_complete\r\n\r\n\r\n"
+      },
+      "install": {
+        "language": "sh",
+        "content": "cd /tmp/ &&\\\r\n\t usermod -G containers -a postfix &&\\\r\n\t touch /etc/postfix/smarthost_passwd &&\\\r\n\t mkdir /usr/share/doc/postfix/html \\\r\n\t \t  \t/usr/lib/postfix/libutil \\\r\n\t \t  \t/usr/lib/postfix/libmaster \\\r\n\t \t  \t/usr/lib/postfix/libdns \\\r\n\t \t  \t/usr/lib/postfix/libtls \\\r\n\t \t  \t/usr/lib/postfix/cdb \\\r\n\t \t  \t/usr/lib/postfix/ldap \\\r\n\t \t  \t/usr/lib/postfix/lmdb \\\r\n\t \t  \t/usr/lib/postfix/mysql \\\r\n\t \t  \t/usr/lib/postfix/pcre \\\r\n\t \t  \t/usr/lib/postfix/pgsql \\\r\n\t \t  \t/usr/lib/postfix/sdbm \\\r\n\t \t  \t/usr/lib/postfix/sqlite \\\r\n\t \t  \t/etc/postfix/dynamicmaps.cf.d \\\r\n\t \t  \t/etc/postfix/makedefs.out \\\r\n\t \t  \t/etc/postfix/postfix-files.d \\\r\n\t \t  \t/usr/lib/postfix/libglobal &&\\\r\n\t /usr/sbin/postfix -c /etc/postfix/ set-permissions create-missing ;\\\r\n\t cp /etc/resolv.conf /var/spool/postfix/etc/ &&\\\r\n\t cp /etc/services /var/spool/postfix/etc/ &&\\\r\n\tmkdir /etc/postfix/maps &&\\\r\n \t/home/post_build_clean.sh"
+      }
+    },
+    "system_packages": [
+      {
+        "package": "postfix"
+      },
+      {
+        "package": "postfix-pcre"
+      },
+      {
+        "package": "postfix-ldap"
+      },
+      {
+        "package": "libsasl2-modules-gssapi-mit"
       }
     ],
     "service_configurations": [
@@ -66,6 +92,221 @@
         "mandatory": true,
         "input": {
           "type": "string"
+        }
+      }
+    ],
+    "actionators": [
+      {
+        "name": "list_domains",
+        "label": "List Email domains",
+        "return_type": "json",
+        "script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n\r\ndomains=`ldapsearch -x -b \"ou=domains,ou=email,ou=Services,ou=Containers,ou=Engines,dc=engines,dc=internal\" -H ldap://ldap// -LLL \"(ObjectClass=dNSDomain)\" dc |grep ^dc:|cut -f2 -d\" \"`\r\necho -n '{\"domains\":['\r\nn=0\r\n\r\nfor domain in $domains\r\ndo\r\n if test $n == 0\r\n  then \r\n   n=2\r\n else\r\n   echo -n ','\r\n fi\r\n echo -n '\"'$domain'\"'\r\ndone\r\n\r\necho ']}'"
+        }
+      },
+      {
+        "name": "add_domain",
+        "label": "Add email domainin",
+        "return_type": "json",
+        "enable_logging": true,
+        "variables": [
+          {
+            "name": "domain_name",
+            "mandatory": true,
+            "input": {
+              "type": "string",
+              "label": "Domain name"
+            }
+          }
+        ]
+      },
+      {
+        "name": "del_domain",
+        "label": "Remove domain",
+        "return_type": "json",
+        "enable_logging": true,
+        "variables": [
+          {
+            "name": "domain_name",
+            "mandatory": true,
+            "input": {
+              "type": "string",
+              "label": "Domain to remove from email"
+            }
+          }
+        ],
+        "script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n\r\n. /home/engines/functions/params_to_env.sh\r\nparams_to_env\r\n. /home/engines/functions/ldap/support_functions.sh\r\n\r\nif test -z $domain_name\r\n then\r\n  echo '{\"error\":\"Missing $domain_name\"}'\r\n  exit 127\r\nfi\r\n\r\ndn_tmpl=`cat /home/engines/templates/email/del_domain.ldif`\r\ndn=`eval echo $dn_tmpl `\r\n/home/engines/scripts/ldap/ldapdelete.sh $dn &> $LDAP_OUTF\r\nresult=$?\r\n\r\nprocess_ldap_result\r\n"
+        }
+      },
+      {
+        "name": "show_queue",
+        "label": "Show email queue",
+        "return_type": "json",
+        "script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\nTMP_FILE=`mktemp`\r\npostqueue -j 2> $TMP_FILE.err 1> $TMP_FILE\r\nresult=$?\r\n\r\nif test $result -ne 0\r\n then\r\n   string_for_json=`cat $TMP_FILE.err`\r\n   rm /tmp/err\r\n   string_for_json=`echo $string_for_json | tr -d \"'\\r\\\"\\t\\f\\b\\n\\v\"`\r\n   echo '{\"Result\":\"FAILED\",\"ReturnCode\":\"'$result'\",\"Error\":\"'$string_for_json'\"}'\r\nelse\r\n  echo '{\"email_queue\":['\r\n  one=1\r\n    cat $TMP_FILE | while read LINE\r\n     do\r\n       if test $one -eq 1\r\n         then\r\n          one=0\r\n       else\r\n          echo -n \",\"\r\n       fi\r\n      echo  -n $LINE\r\n    done\r\n  echo ']}'\r\nfi\r\n\r\nfor FILE in $TMP_FILE.err $TMP_FILE\r\n do\r\n  if test -f $FILE\r\n   then\r\n     rm $FILE\r\n  fi\r\ndone\r\n"
+        }
+      },
+      {
+        "name": "flush_queue",
+        "label": "Flush email queue",
+        "return_type": "json",
+        "script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\nperr=`mktemp`\r\npostqueue -f &> $perr\r\nresult=$?\r\nstring_for_json=`cat $perr`\r\nrm $perr\r\nstring_for_json=`echo $string_for_json | tr -d \"'\\r\\\"\\t\\f\\b\\n\\v\"`\r\nif test $result -eq 0\r\n then\r\n  echo '{\"Result\":\"OK\"}'\r\n  else\r\n   echo '{\"Result\":\"FAILED\",\"ReturnCode\":\"'$result'\",\"Error\":\"'$string_for_json'\"}'\r\n  \r\n  fi "
+        }
+      },
+      {
+        "name": "rm_email",
+        "label": "Remove email from queue",
+        "return_type": "json",
+        "enable_logging": true,
+        "variables": [
+          {
+            "name": "queue_id",
+            "mandatory": true,
+            "input": {
+              "type": "string",
+              "label": "Message id"
+            }
+          }
+        ]
+      }
+    ],
+    "configurators": [
+      {
+        "name": "default_domain",
+        "label": "Default Domain",
+        "enable_logging": true,
+        "variables": [
+          {
+            "name": "default_domain",
+            "mandatory": true,
+            "input": {
+              "type": "string",
+              "label": "Default Domain"
+            }
+          }
+        ],
+        "set_script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n. /home/engines/functions/params_to_env.sh\r\n\r\nPARAMS_FILE=/home/engines/scripts/configurators/saved/default_domain\r\nparms_to_file_and_env\r\n  \r\n if test  ${#default_domain} -gt 5\r\n  then\r\n \techo email.${default_domain} > /etc/postfix/mailname \t\r\n    sudo -n /home/engines/scripts/engine/_set_mailname.sh email.${default_domain}\r\n fi\r\n \r\nexit 0"
+        },
+        "read_script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n\r\nif test -f /home/engines/scripts/configurators/saved/default_domain\r\n\tthen\r\n\t\tcat /home/engines/scripts/configurators/saved/default_domain\r\n\telse\r\n\t#echo '{\"default_domain\":\"Not Set\"}'\r\n\techo '{}'\r\n\r\nfi\r\nexit 0"
+        }
+      },
+      {
+        "name": "anti_spam_rbls",
+        "label": "Anti Spam lookup list",
+        "enable_logging": true,
+        "variables": [
+          {
+            "name": "zen_spamhaus_org",
+            "value": "false",
+            "input": {
+              "type": "boolean",
+              "title": "zen.spamhaus.org"
+            }
+          },
+          {
+            "name": "bl_spamcop_net",
+            "value": "false",
+            "input": {
+              "type": "boolean",
+              "label": "bl.spamcop.net"
+            }
+          },
+          {
+            "name": "cbl_abuseat_org",
+            "value": "false",
+            "input": {
+              "type": "boolean",
+              "label": "cbl.abuseat.org"
+            }
+          },
+          {
+            "name": "dnsbl_njabl_org",
+            "value": "false",
+            "input": {
+              "type": "boolean",
+              "label": "dnsbl.njabl.org"
+            }
+          },
+          {
+            "name": "dnsbl_sorbs_net",
+            "value": "false",
+            "input": {
+              "type": "boolean",
+              "label": "dnsbl.sorbs.net"
+            }
+          },
+          {
+            "name": "dsn_rfc-ignorant_org",
+            "value": "false",
+            "input": {
+              "type": "boolean",
+              "label": "dsn.rfc-ignorant.org"
+            }
+          }
+        ],
+        "set_script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n\r\n. /home/engines/functions/params_to_env.sh\r\nPARAMS_FILE=/home/engines/scripts/configurators/saved/rbl\r\nparms_to_file_and_env\r\n\r\n\r\n/home/engines/scripts/configurators/check_anti_spam_setting.sh zen.spamhaus.org ${zen_spamhaus_org}\r\n/home/engines/scripts/configurators/check_anti_spam_setting.sh bl.spamcop.net ${bl_spamcop_net}\r\n/home/engines/scripts/configurators/check_anti_spam_setting.sh cbl.abuseat.org ${cbl_abuseat_org}\r\n/home/engines/scripts/configurators/check_anti_spam_setting.sh dnsbl.njabl.org ${dnsbl_njabl_org}\r\n/home/engines/scripts/configurators/check_anti_spam_setting.sh dnsbl.sorbs.net ${dnsbl_sorbs_net}\r\n/home/engines/scripts/configurators/check_anti_spam_setting.sh dsn.rfc-ignorant.org ${dsn_rfc_ignorant_org}\r\n\r\nsudo /home/engines/scripts/configurators/rebuild_main.sh\r\n \r\nexit 0"
+        },
+        "read_script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n\r\nconfig_dir=/home/engines/scripts/configurators/saved/antispam/\r\n\r\nif test -f ${config_dir}/zen.spamhaus.org\r\n then\r\n   zen_spamhaus_org=true\r\nfi\r\n\r\nif test -f ${config_dir}/bl.spamcop.net\r\n then\r\n   bl_spamcop_net=true\r\nfi\r\n\r\nif test -f ${config_dir}/cbl.abuseat.org\r\n then\r\n   cbl_abuseat_org=true\r\nfi\r\n\r\nif test -f ${config_dir}/dnsbl.njabl.org\r\n then\r\n   dnsbl_njabl_org=true\r\nfi\r\n\r\nif test -f ${config_dir}/dnsbl.sorbs.net\r\n then\r\n   dnsbl_sorbs_net=true\r\nfi\r\n\r\nif test -f ${config_dir}/dsn.rfc-ignorant.org\r\n then\r\n   dsn_rfc_ignorant_org=true\r\nfi\r\n \r\n echo \"{\\\"zen_spamhaus_org\\\":\\\"${zen_spamhaus_org}\\\",\\\"bl_spamcop_net\\\":\\\"${bl_spamcop_net}\\\",\\\"cbl_abuseat_org\\\":\\\"${cbl_abuseat_org}\\\",\\\"dnsbl_njabl_org\\\":\\\"${dnsbl_njabl_org}\\\",\\\"dnsbl_sorbs_net\\\":\\\"${dnsbl_sorbs_net}\\\",\\\"dsn_rfc-ignorant_org\\\":\\\"${dsn_rfc_ignorant_org}\\\"}\"\r\n \r\nexit 0\r\n"
+        }
+      },
+      {
+        "name": "grey_listing",
+        "label": "Grey Listing ",
+        "variables": [
+          {
+            "name": "enable_grey_listing",
+            "value": "false",
+            "input": {
+              "type": "boolean",
+              "label": "Enable grey listing"
+            }
+          },
+          {
+            "name": "grey_list_delay",
+            "value": "120",
+            "mandatory": true,
+            "input": {
+              "type": "integer",
+              "label": "Grey list delay",
+              "comment": "Time in secs to delay connection to deter spammers"
+            }
+          },
+          {
+            "name": "whitelist_clients",
+            "input": {
+              "type": "text",
+              "label": "List of Addresses or hostnames excluded from grey listing"
+            }
+          },
+          {
+            "name": "whitelist_addresses",
+            "input": {
+              "type": "text",
+              "label": "List of email adresses excluded from grey listing"
+            }
+          }
+        ],
+        "set_script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n\r\n. /home/engines/functions/params_to_env.sh\r\nPARAMS_FILE=/home/engines/scripts/configurators/saved/grey_listing\r\nparms_to_file_and_env\r\n\r\nif ! test -z $grey_list_delay\r\nthen\r\n\techo -n $grey_list_delay > /home/engines/scripts/configurators/grey/grey_list_delay\r\nfi\r\n  \r\nif ! test -z $whitelist_addresses\r\nthen\r\n\techo $whitelist_addresses > /home/engines/scripts/configurators/grey/white_adresses\r\nelse\r\n    truncate --size 0 /home/engines/scripts/configurators/grey/white_adresses\r\nfi\r\n\r\nif ! test -z $whitelist_clients\r\nthen\r\n\techo $whitelist_clients > /home/engines/scripts/configurators/grey/white_clients\r\n\techo smtp.engines.internal >> /home/engines/scripts/configurators/grey/white_clients\r\n\techo email.engines.internal >> /home/engines/scripts/configurators/grey/white_clients\r\nelse\r\n    truncate --size 0 /home/engines/scripts/configurators/grey/white_clients\r\nfi\r\n\r\nif ! test -z $enable_grey_listing  \r\n then\r\nif  test $enable_grey_listing -eq 1\r\n then\r\n \ttouch  /home/engines/scripts/configurators/saved/grey_listing_enabled\r\n \t/home/engines/scripts/engine/start_grey.sh\r\n else\r\n    rm /home/engines/scripts/configurators/saved/grey_listing_enabled\r\n    /home/engines/scripts/engine/kill_grey.sh  \r\n  fi \r\nelse\r\n    rm /home/engines/scripts/configurators/saved/grey_listing_enabled\r\n     /home/engines/scripts/engine/kill_grey.sh  \r\nfi\r\n\r\nsudo /home/engines/scripts/configurators/rebuild_main.sh\r\n   \t \r\nexit 0\r\n\r\n   \r\n"
+        },
+        "read_script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n\r\n\r\n\r\nif  test -f /home/engines/scripts/configurators/saved/grey_listing_enabled\r\n then\r\n \tenable_grey_listing=true\r\n \tgrey_list_delay=`cat /home/engines/scripts/configurators/grey/grey_list_delay`\r\n \twhitelist_addresses=`cat /home/engines/scripts/configurators/grey/white_adresses`\r\n \twhitelist_clients=`cat/home/engines/scripts/configurators/grey/white_clients `\r\n else\r\n   enable_grey_listing=false\r\nfi    \r\n\r\necho \"{\\\"enable_grey_listing\\\":\\\"$enable_grey_listing\\\",\\\"grey_list_delay\\\":\\\"$grey_list_delay\\\",\\\"whitelist_clients\\\":\\\"$whitelist_clients\\\",\\\"whitelist_addresses\\\":\\\"$whitelist_addresses\\\"}\"\r\n   \t\r\n \r\nexit 0\r\n"
         }
       }
     ]
