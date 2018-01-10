@@ -2,8 +2,8 @@
   "schema": {
     "type": "service_blueprint",
     "version": {
-      "major": 1,
-      "minor": 0
+      "major": 0,
+      "minor": 1
     },
     "origin": "Engines Developer Studio 0.2"
   },
@@ -22,7 +22,7 @@
         "label": "email"
       }
     },
-    "timestamp": "2017-11-16T13:34:14+11:00"
+    "timestamp": "2018-01-10T18:01:51+11:00"
   },
   "software": {
     "base": {
@@ -31,19 +31,21 @@
       "type_path": "email",
       "service_handle_field": "name",
       "parent_image": "engines/servicebase",
-      "run_as_user": "postfix",
       "deployment_type": "worker",
       "memory": {
         "required": 90,
         "recommended": 90
       },
+      "run_as_user": "postfix"
+    },
+    "disposition": {
       "persistent": true,
       "attach_post_build": true
     },
     "ports": [
       {
-        "port": 25,
-        "external": 25,
+        "port": "25",
+        "external": "25",
         "protocol": "tcp"
       }
     ],
@@ -95,6 +97,16 @@
         }
       }
     ],
+    "template_files": [
+      {
+        "path": "/home/engines/templates/email/add_domain.ldif",
+        "content": "dn: dc=$domain_name,ou=domains,ou=email,ou=Services,ou=Containers,ou=Engines,dc=engines,dc=internal\r\ndc: $domain_name\r\nobjectclass: dNSDomain\r\n"
+      },
+      {
+        "path": "/home/engines/templates/email/del_domain.ldif",
+        "content": "dc=$domain_name,ou=domains,ou=email,ou=Services,ou=Containers,ou=Engines,dc=engines,dc=internal"
+      }
+    ],
     "actionators": [
       {
         "name": "list_domains",
@@ -119,7 +131,11 @@
               "label": "Domain name"
             }
           }
-        ]
+        ],
+        "script": {
+          "language": "sh",
+          "content": "#!/bin/bash\r\n\r\n. /home/engines/functions/params_to_env.sh\r\nparams_to_env\r\n\r\nif test -z $domain_name\r\n then\r\n  echo '{\"error\":\"Missing $domain_name\"}'\r\n  exit 127\r\nfi\r\n\r\n. /home/engines/functions/ldap/support_functions.sh\r\n\r\n\r\n\r\ncat /home/engines/templates/email/add_domain.ldif | while read LINE\r\ndo\r\n eval echo $LINE >> $LDIF_FILE\r\ndone\r\n\r\ncat $LDIF_FILE | /home/engines/scripts/ldap/ldapadd.sh &> $LDAP_OUTF\r\nresult=$?\r\n\r\nprocess_ldap_result\r\n\r\nrm $LDIF_FILE  $LDAP_OUTF"
+        }
       },
       {
         "name": "del_domain",
