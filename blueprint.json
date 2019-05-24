@@ -22,7 +22,7 @@
         "label": "email"
       }
     },
-    "timestamp": "2018-01-10T18:01:51+11:00"
+    "timestamp": "2019-05-24T18:52:56+10:00"
   },
   "software": {
     "base": {
@@ -32,6 +32,8 @@
       "service_handle_field": "name",
       "parent_image": "engines/servicebase",
       "deployment_type": "worker",
+      "default_stop_timeout": 0,
+      "restart_attempts": 0,
       "memory": {
         "required": 90,
         "recommended": 90
@@ -83,7 +85,8 @@
           "engine_path": " /var/spool/postfix/",
           "permissions": "rw",
           "user": "postifx",
-          "group": "postifx"
+          "group": "postifx",
+          "fw_user": "_Engines_Builder(cont_user_id)"
         }
       }
     ],
@@ -190,6 +193,14 @@
             }
           }
         ]
+      },
+      {
+        "name": "clear_complete_queue",
+        "return_type": "plain_text"
+      },
+      {
+        "name": "clear_deffered_queue",
+        "return_type": "plain_text"
       }
     ],
     "configurators": [
@@ -225,7 +236,7 @@
             "name": "zen_spamhaus_org",
             "value": "false",
             "input": {
-              "type": "boolean",
+              "type": "checkbox_boolean",
               "title": "zen.spamhaus.org"
             }
           },
@@ -233,7 +244,7 @@
             "name": "bl_spamcop_net",
             "value": "false",
             "input": {
-              "type": "boolean",
+              "type": "checkbox_boolean",
               "label": "bl.spamcop.net"
             }
           },
@@ -241,7 +252,7 @@
             "name": "cbl_abuseat_org",
             "value": "false",
             "input": {
-              "type": "boolean",
+              "type": "checkbox_boolean",
               "label": "cbl.abuseat.org"
             }
           },
@@ -249,7 +260,7 @@
             "name": "dnsbl_njabl_org",
             "value": "false",
             "input": {
-              "type": "boolean",
+              "type": "checkbox_boolean",
               "label": "dnsbl.njabl.org"
             }
           },
@@ -257,15 +268,15 @@
             "name": "dnsbl_sorbs_net",
             "value": "false",
             "input": {
-              "type": "boolean",
+              "type": "checkbox_boolean",
               "label": "dnsbl.sorbs.net"
             }
           },
           {
-            "name": "dsn_rfc-ignorant_org",
+            "name": "dsn_rfc_gnorant_org",
             "value": "false",
             "input": {
-              "type": "boolean",
+              "type": "checkbox_boolean",
               "label": "dsn.rfc-ignorant.org"
             }
           }
@@ -287,7 +298,7 @@
             "name": "enable_grey_listing",
             "value": "false",
             "input": {
-              "type": "boolean",
+              "type": "checkbox_boolean",
               "label": "Enable grey listing"
             }
           },
@@ -324,6 +335,41 @@
           "language": "sh",
           "content": "#!/bin/bash\r\n\r\n\r\n\r\nif  test -f /home/engines/scripts/configurators/saved/grey_listing_enabled\r\n then\r\n \tenable_grey_listing=true\r\n \tgrey_list_delay=`cat /home/engines/scripts/configurators/grey/grey_list_delay`\r\n \twhitelist_addresses=`cat /home/engines/scripts/configurators/grey/white_adresses`\r\n \twhitelist_clients=`cat/home/engines/scripts/configurators/grey/white_clients `\r\n else\r\n   enable_grey_listing=false\r\nfi    \r\n\r\necho \"{\\\"enable_grey_listing\\\":\\\"$enable_grey_listing\\\",\\\"grey_list_delay\\\":\\\"$grey_list_delay\\\",\\\"whitelist_clients\\\":\\\"$whitelist_clients\\\",\\\"whitelist_addresses\\\":\\\"$whitelist_addresses\\\"}\"\r\n   \t\r\n \r\nexit 0\r\n"
         }
+      },
+      {
+        "name": "enforce_spf",
+        "variables": [
+          {
+            "name": "enforce_spf",
+            "mandatory": true,
+            "input": {
+              "type": "checkbox_boolean"
+            }
+          }
+        ]
+      },
+      {
+        "name": "enforce_dkim",
+        "variables": [
+          {
+            "name": "enforce_dkim",
+            "input": {
+              "type": "checkbox_boolean"
+            }
+          }
+        ]
+      },
+      {
+        "name": "hostname_checks",
+        "variables": [
+          {
+            "name": "hostname_checks",
+            "mandatory": true,
+            "input": {
+              "type": "checkbox_boolean"
+            }
+          }
+        ]
       }
     ]
   }
