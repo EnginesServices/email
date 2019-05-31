@@ -22,7 +22,7 @@
         "label": "email"
       }
     },
-    "timestamp": "2019-05-24T18:52:56+10:00"
+    "timestamp": "2019-05-31T12:38:14+10:00"
   },
   "software": {
     "base": {
@@ -341,7 +341,6 @@
         "variables": [
           {
             "name": "enforce_spf",
-            "mandatory": true,
             "input": {
               "type": "checkbox_boolean"
             }
@@ -364,7 +363,6 @@
         "variables": [
           {
             "name": "hostname_checks",
-            "mandatory": true,
             "input": {
               "type": "checkbox_boolean"
             }
