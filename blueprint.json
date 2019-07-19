@@ -22,7 +22,7 @@
         "label": "email"
       }
     },
-    "timestamp": "2019-07-04T10:08:45+10:00"
+    "timestamp": "2019-07-19T19:27:58+10:00"
   },
   "software": {
     "base": {
@@ -86,7 +86,8 @@
           "permissions": "rw",
           "user": "postifx",
           "group": "postifx",
-          "fw_user": "_Engines_Builder(cont_user_id)"
+          "fw_user": "_Engines_Builder(cont_user_id)",
+          "exclude_from_backup": "false"
         }
       }
     ],
